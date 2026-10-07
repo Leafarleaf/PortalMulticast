@@ -1,0 +1,342 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Ambiente de estudo interativo sobre multicast ordenado, com foco nas ordenações FIFO, causal e total e na abordagem de Coulouris.">
+  <title>Entenda multicast ordenado sem decorar definições</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Pular para o conteúdo principal</a>
+
+  <header class="topbar">
+    <div class="container topbar-inner">
+      <button class="brand" data-section="inicio" aria-label="Ir para o início">
+        <span class="brand-mark">M</span>
+        <span><strong>Portal Multicast</strong><small>aprenda visualizando</small></span>
+      </button>
+      <nav class="desktop-nav" aria-label="Navegação principal">
+        <button data-section="fundamentos">Fundamentos</button>
+        <button data-section="ordenacoes">Ordenações</button>
+        <button data-section="simulador">Simulador</button>
+        <button data-section="questoes">Questões</button>
+        <button data-section="revisao">Revisão</button>
+      </nav>
+      <div class="top-actions">
+        <button id="themeToggle" class="icon-btn" type="button" title="Alternar tema" aria-label="Alternar tema">☀️</button>
+        <button id="menuToggle" class="icon-btn mobile-only" type="button" aria-label="Abrir menu" aria-expanded="false">☰</button>
+      </div>
+    </div>
+    <div id="mobileNav" class="mobile-nav" aria-hidden="true"></div>
+  </header>
+
+  <main id="main">
+    <section id="inicio" class="hero section-pad">
+      <div class="container hero-grid">
+        <div>
+          <div class="eyebrow">SISTEMAS DISTRIBUÍDOS · APRENDER COM EXEMPLOS</div>
+          <h1>Entenda <span>multicast ordenado</span> sem decorar definições</h1>
+          <p class="hero-copy">Um ambiente de estudo para visualizar o problema de ordenação em <em>multicast</em> distribuído, que apresenta as ordenações FIFO, causal e total, testar cenários e descobrir por que uma mesma mensagem pode chegar em ordens diferentes — e como os protocolos evitam isso.</p>
+          <div class="hero-actions">
+            <button class="btn primary" data-section="fundamentos">Começar pelo zero →</button>
+            <button class="btn secondary" data-section="simulador">Ir para o laboratório</button>
+          </div>
+          <div class="hero-notes" aria-label="Princípios do portal">
+            <span>✓ foco em entrega</span><span>✓ exemplos visuais</span><span>✓ causalidade por dependências</span><span>✓ sem relógios lógicos como porta de entrada</span>
+          </div>
+        </div>
+        <div class="concept-card">
+          <div class="concept-top"><span>Mapa mental</span><span class="status-dot">estudo ativo</span></div>
+          <div class="concept-flow">
+            <div class="node source">P₁</div><span class="flow-arrow">multicast →</span>
+            <div class="node message">m₁</div><span class="flow-arrow">→ grupo</span>
+            <div class="group-nodes"><div class="node small">P₂</div><div class="node small">P₃</div><div class="node small">P₄</div></div>
+          </div>
+          <div class="concept-callout"><strong>Pergunta central:</strong> o que deve acontecer quando mensagens chegam aos processos em uma ordem diferente daquela que queremos preservar?</div>
+        </div>
+      </div>
+    </section>
+
+    <section id="fundamentos" class="section-pad">
+      <div class="container">
+        <div class="section-heading"><div><span class="eyebrow">01 · FUNDAMENTOS</span><h2>Comece pelo problema, não pela definição</h2></div><span class="pill">base conceitual</span></div>
+        <div class="content-grid two">
+          <article class="card reading-card">
+            <h3>Unicast × broadcast × multicast</h3>
+            <div class="definition-list">
+              <div><span class="definition-badge unicast">Unicast</span><p>é uma comunicação ponto-a-ponto, de um remetente para um destinatário.</p></div>
+              <div><span class="definition-badge broadcast">Broadcast</span><p>envia uma mensagem para todos os participantes de um domínio definido.</p></div>
+              <div><span class="definition-badge multicast">Multicast</span><p>envia uma mensagem para um grupo de processos que participam daquela comunicação.</p></div>
+            </div>
+            <div class="mini-diagram large">
+              <div class="diagram-row"><b>P₁</b><span>unicast</span><b>P₂</b></div>
+              <div class="diagram-row"><b>P₁</b><span>multicast</span><div class="dots"><b>P₂</b><b>P₃</b><b>P₄</b></div></div>
+              <div class="diagram-row"><b>P₁</b><span>broadcast</span><div class="dots"><b>P₂</b><b>P₃</b><b>P₄</b><b>P₅</b></div></div>
+            </div>
+          </article>
+          <article class="card reading-card">
+            <h3>Onde nasce o problema da ordenação?</h3>
+            <p>O multicast básico pode entregar cópias das mensagens aos processos em ordens diferentes porque as comunicações subjacentes podem sofrer atrasos diferentes.</p>
+            <div class="timeline-demo wide">
+              <div><span>envio</span><b>m₁</b><b>m₂</b></div>
+              <div><span>P₂</span><i>m₁ → m₂</i></div>
+              <div><span>P₃</span><i>m₂ → m₁</i></div>
+            </div>
+            <div class="focus-box"><strong>Objetivo:</strong><br>preservar a ordem da entrega das mensagens usando a relação de precedência causal.</div>
+            <p class="note"><strong>Atenção:</strong> essa frase descreve especificamente a ideia central da <em>ordenação causal</em>. No multicast ordenado em geral, a garantia pode ser FIFO, causal ou total.</p>
+          </article>
+        </div>
+
+        <div class="learn-box">
+          <div class="learn-icon">💡</div>
+          <div><strong>Uma forma simples de estudar</strong><p>Faça sempre as mesmas três perguntas: <em>“é o mesmo remetente?”</em>, <em>“existe dependência?”</em> e <em>“todos precisam observar uma mesma ordem?”</em>.</p></div>
+        </div>
+
+        <div class="section-heading compact"><div><span class="eyebrow">VOCABULÁRIO</span><h2>Termos essenciais</h2></div></div>
+        <div class="glossary-grid">
+          <article class="glossary card"><strong>Processo</strong><p>Participante da comunicação distribuída, representado aqui por P₁, P₂, P₃...</p></article>
+          <article class="glossary card"><strong>Grupo</strong><p>Conjunto de processos que participam do multicast.</p></article>
+          <article class="glossary card"><strong>Multicast</strong><p>Operação de envio de uma mensagem para os integrantes de um grupo.</p></article>
+          <article class="glossary card"><strong>Entrega (<em>delivery</em>)</strong><p>Momento em que o processo aceita/entrega a mensagem para a camada de aplicação.</p></article>
+          <article class="glossary card"><strong>Ordem parcial</strong><p>Algumas mensagens precisam preservar uma ordem de entrega, mas outras não precisam obedecer essa ordem. Mensagens sem uma relação exigida podem permanecer concorrentes.</p></article>
+          <article class="glossary card"><strong>Ordem total</strong><p>Todo par de mensagens dentro do escopo da ordenação pode ser comparado, e os processos do grupo devem concordar sobre a mesma ordem relativa de entrega.</p></article>
+        </div>
+
+        <div class="definition-spotlight card">
+          <div class="spotlight-icon">↔</div>
+          <div><h3>Chegar não é o mesmo que entregar</h3><p>Uma mensagem pode <strong>chegar</strong> ao processo e ficar temporariamente em uma fila de espera. A entrega à aplicação só acontece quando a regra de ordenação permite. O simulador abaixo torna essa diferença explícita.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="ordenacoes" class="section-pad alt-bg">
+      <div class="container">
+        <div class="section-heading"><div><span class="eyebrow">02 · O NÚCLEO DO ASSUNTO</span><h2>FIFO, causal e total</h2></div><span class="pill accent">Coulouris · Ordered multicast</span></div>
+        <div class="ordering-tabs" role="tablist" aria-label="Ordenações">
+          <button class="ordering-tab active" data-order="fifo" role="tab" aria-selected="true">1 · FIFO</button>
+          <button class="ordering-tab" data-order="causal" role="tab" aria-selected="false">2 · Causal</button>
+          <button class="ordering-tab" data-order="total" role="tab" aria-selected="false">3 · Total</button>
+        </div>
+        <div id="orderPanel" class="order-panel"></div>
+
+        <div class="comparison card">
+          <div class="section-heading compact"><div><span class="eyebrow">COMPARAÇÃO</span><h2>O que cada garantia realmente obriga?</h2></div></div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Pergunta</th><th>FIFO</th><th>Causal</th><th>Total</th></tr></thead>
+              <tbody>
+                <tr><td>Preserva sequência do mesmo remetente?</td><td>✓</td><td>✓</td><td>não necessariamente*</td></tr>
+                <tr><td>Preserva dependências entre mensagens?</td><td>não</td><td>✓</td><td>não necessariamente*</td></tr>
+                <tr><td>Todos observam necessariamente a mesma ordem?</td><td>não garantido</td><td>não garantido</td><td>✓</td></tr>
+                <tr><td>Mensagens concorrentes precisam de uma ordem?</td><td>não</td><td>não</td><td>✓</td></tr>
+                <tr><td>É parcial por si só?</td><td>sim</td><td>sim</td><td>não</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="table-note">* Total, considerado isoladamente, garante concordância sobre a ordem, mas não acrescenta automaticamente FIFO ou causalidade. Por isso aparecem combinações como <strong>FIFO-total</strong> e <strong>causal-total</strong>.</p>
+        </div>
+
+        <article class="card scenario-card">
+          <div><span class="eyebrow">EXEMPLOS PARA NÃO CONFUNDIR</span><h3>Uma frase para cada tipo</h3></div>
+          <div class="scenario-grid">
+            <div><span class="scenario-tag fifo">FIFO</span><p><strong>Se o mesmo remetente envia m₁ e depois m₂, um processo não pode entregar m₂ antes de m₁.</strong> Mensagens de remetentes diferentes não precisam seguir essa mesma ordem e podem ser intercaladas.</p></div>
+            <div><span class="scenario-tag causal">CAUSAL</span><p><strong>Preserva dependências entre multicasts: quando uma mensagem m₂ depende de outra m₁, m₁ deve ser entregue primeiro.</strong> Em outras palavras, o efeito não pode chegar à aplicação antes da causa que o produziu.</p></div>
+            <div><span class="scenario-tag total">TOTAL</span><p>Mensagens de remetentes diferentes também precisam de uma ordem comum na sequência de entrega. A ordem escolhida pode não corresponder à ordem física de envio.</p></div>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section id="simulador" class="section-pad simulator-section">
+  <div class="container">
+    <div class="section-heading">
+      <div><span class="eyebrow">03 · LABORATÓRIO INTERATIVO</span><h2>Entenda cada decisão de entrega</h2></div>
+      <span class="pill accent">PASSO A PASSO</span>
+    </div>
+
+    <div class="sim-intro card">
+      <div class="sim-intro-icon">▶</div>
+      <div>
+        <h3>O que você vai observar</h3>
+        <p>A rede entrega cópias das mensagens em momentos diferentes. O processo analisa cada cópia e decide: <strong>pode entregar agora</strong> ou <strong>precisa esperar</strong>? O simulador mostra essa decisão na tela e explica o motivo em linguagem direta.</p>
+      </div>
+    </div>
+
+    <div class="simulator-toolbar card">
+      <div class="sim-control">
+        <label for="simMode">Regra de ordenação</label>
+        <select id="simMode">
+          <option value="fifo">FIFO</option>
+          <option value="causal">Causal</option>
+          <option value="total">Total</option>
+          <option value="none">Sem ordenação</option>
+        </select>
+      </div>
+      <div class="sim-control wide">
+        <label for="scenarioSelect">Cenário</label>
+        <select id="scenarioSelect">
+          <option value="same-sender">A · mesmo remetente</option>
+          <option value="causal-chain">B · dependência causal</option>
+          <option value="concurrent">C · mensagens concorrentes</option>
+        </select>
+      </div>
+      <div class="sim-control">
+        <label for="simSpeed">Velocidade</label>
+        <select id="simSpeed">
+          <option value="1500">Lenta</option>
+          <option value="900" selected>Normal</option>
+          <option value="500">Rápida</option>
+        </select>
+      </div>
+      <div class="sim-buttons">
+        <button id="loadScenario" class="btn primary">↻ Carregar</button>
+        <button id="stepSim" class="btn secondary">Próximo evento →</button>
+        <button id="autoSim" class="btn secondary">▶ Reproduzir</button>
+        <button id="resetSim" class="btn ghost">↺ Reiniciar</button>
+      </div>
+    </div>
+
+    <div class="scenario-banner card" id="scenarioDescription"></div>
+
+    <div class="sim-stage card">
+      <div class="stage-toolbar">
+        <div><span class="status-kicker">O QUE ESTÁ ACONTECENDO AGORA</span><strong id="simStatus">Aguardando cenário</strong></div>
+        <div class="stage-counters"><span id="simStep">evento 0</span><span id="simProgress">0/0 eventos</span></div>
+      </div>
+
+      <div class="sim-flow-guide" aria-hidden="true">
+        <div><span class="flow-icon">1</span><strong>Rede</strong><small>cópia chega</small></div>
+        <div class="flow-arrow">→</div>
+        <div><span class="flow-icon">2</span><strong>Processo</strong><small>analisa a regra</small></div>
+        <div class="flow-arrow">→</div>
+        <div><span class="flow-icon">3</span><strong>Fila</strong><small>espera, se necessário</small></div>
+        <div class="flow-arrow">→</div>
+        <div><span class="flow-icon">4</span><strong>Aplicação</strong><small>entrega liberada</small></div>
+      </div>
+
+      <div class="event-focus" id="eventFocus" aria-live="polite">
+        <span class="event-number">0</span>
+        <div><strong>Nenhum evento processado</strong><p>Carregue o cenário e avance para ver uma mensagem chegando a um processo.</p></div>
+      </div>
+
+      <div class="timeline-box">
+        <div class="event-log-head"><div><span class="eyebrow">LINHA DO TEMPO</span><strong>Decisões do protocolo</strong></div><button id="clearLog" class="text-btn">limpar</button></div>
+        <ol id="deliveryLog" class="event-timeline"></ol>
+      </div>
+
+      <div class="network-strip" id="networkStrip" aria-live="polite"></div>
+      <div id="simNetwork" class="network-map" aria-live="polite"></div>
+
+      <div class="delivery-overview">
+        <div class="overview-head"><div><span class="eyebrow">ENTREGAS À APLICAÇÃO</span><strong>O que cada processo já entregou?</strong></div><span id="deliveryAgreement" class="agreement-badge">—</span></div>
+        <div id="deliverySequences" class="delivery-sequences"></div>
+      </div>
+    </div>
+
+    <div id="simExplanation" class="sim-explanation card" role="status"></div>
+
+    <div class="sim-state-legend card">
+      <div><span class="state-dot arrived"></span><div><strong>Chegou</strong><p>A cópia chegou ao processo e está disponível para análise.</p></div></div>
+      <div><span class="state-dot waiting"></span><div><strong>Aguardando</strong><p>A mensagem chegou, mas a regra ainda não permite sua entrega.</p></div></div>
+      <div><span class="state-dot delivered"></span><div><strong>Entregue</strong><p>A mensagem já foi liberada para a aplicação.</p></div></div>
+      <div><span class="state-dot not-yet"></span><div><strong>Não chegou</strong><p>A rede ainda não trouxe essa cópia ao processo.</p></div></div>
+    </div>
+
+    <div class="compare-lab card">
+      <div class="section-heading compact"><div><span class="eyebrow">COMPARAÇÃO</span><h2>O mesmo cenário, quatro regras</h2></div><button id="runComparison" class="btn secondary">▶ Comparar regras</button></div>
+      <p class="compare-intro">Veja como a mesma sequência de chegadas produz comportamentos diferentes quando mudamos a regra de ordenação.</p>
+      <div id="compareGrid" class="compare-grid"></div>
+    </div>
+
+    <div class="sim-concepts-grid">
+      <article class="card micro-lesson"><span class="lesson-number">01</span><h3>Chegada</h3><p>A mensagem alcança um processo. O protocolo passa a analisá-la.</p></article>
+      <article class="card micro-lesson"><span class="lesson-number">02</span><h3>Regra</h3><p>O processo verifica FIFO, causal, total ou nenhuma restrição adicional.</p></article>
+      <article class="card micro-lesson"><span class="lesson-number">03</span><h3>Espera</h3><p>Se faltar uma condição, a mensagem permanece retida na fila.</p></article>
+      <article class="card micro-lesson"><span class="lesson-number">04</span><h3>Entrega</h3><p>Quando a condição é satisfeita, a mensagem entra na sequência da aplicação.</p></article>
+    </div>
+  </div>
+</section>
+
+<section id="questoes" class="section-pad alt-bg">
+      <div class="container quiz-container">
+        <div class="section-heading"><div><span class="eyebrow">04 · QUESTÕES</span><h2>Treine até a diferença ficar automática</h2></div><span class="pill accent"><span id="questionCount">10</span> por rodada</span></div>
+        <div class="quiz-stats-grid">
+          <div class="quiz-stat card"><span>Melhor nota</span><strong id="bestGrade">—</strong><small>de 10</small></div>
+          <div class="quiz-stat card"><span>Última nota</span><strong id="lastGrade">—</strong><small id="lastPercent">nenhuma rodada</small></div>
+          <div class="quiz-stat card"><span>Rodadas</span><strong id="attemptCount">0</strong><small>realizadas neste navegador</small></div>
+        </div>
+        <div class="quiz-top card">
+          <div><span class="eyebrow">RODADA</span><h3 id="quizTitle">Teste seus conceitos</h3><p id="quizSubtitle">Escolha uma alternativa. Depois da resposta, veja a explicação.</p></div>
+          <label class="question-size">Questões<select id="questionSize"><option value="10" selected>10</option><option value="20">20</option><option value="40">40</option></select></label>
+          <div class="quiz-score"><strong id="quizScore">0</strong><small>acertos</small></div>
+        </div>
+        <div class="quiz-progress"><span id="quizProgress"></span></div>
+        <article id="quizCard" class="quiz-card card"></article>
+        <div class="quiz-actions">
+          <button id="nextQuestion" class="btn primary" disabled>Próxima questão →</button>
+          <button id="newQuiz" class="btn secondary">Nova rodada</button>
+        </div>
+        <div id="quizResult" class="quiz-result card hidden"></div>
+      </div>
+    </section>
+
+    <section id="revisao" class="section-pad">
+      <div class="container">
+        <div class="section-heading"><div><span class="eyebrow">05 · REVISÃO E CONCLUSÃO</span><h2>Feche o ciclo de estudo</h2></div><span class="pill">roteiro de revisão</span></div>
+
+        <div class="study-path card">
+          <div class="section-heading compact"><div><span class="eyebrow">ROTEIRO DE ESTUDO</span><h2>Uma sequência que faz sentido</h2></div></div>
+          <div class="path-grid">
+            <button class="path-step" data-section="fundamentos"><span>1</span><strong>Entender o problema</strong><small>multicast, chegada e entrega</small></button>
+            <button class="path-step" data-section="ordenacoes"><span>2</span><strong>Diferenciar as três garantias</strong><small>FIFO, causal e total</small></button>
+            <button class="path-step" data-section="simulador"><span>3</span><strong>Ver acontecer</strong><small>chegada, espera e entrega</small></button>
+            <button class="path-step" data-section="questoes"><span>4</span><strong>Testar compreensão</strong><small>40 questões disponíveis</small></button>
+            <button class="path-step" data-section="revisao"><span>5</span><strong>Revisar conceitos</strong><small>síntese e dúvidas comuns</small></button>
+          </div>
+        </div>
+
+        <div class="review-grid">
+          <article class="review-card card"><div class="review-icon">1</div><div><h3>FIFO</h3><p>Preserva a sequência das mensagens multicast emitidas pelo mesmo remetente.</p><div class="review-example">P₁: m₁ → m₂ ⇒ não entregar m₂ antes de m₁.</div></div></article>
+          <article class="review-card card"><div class="review-icon">2</div><div><h3>Causal</h3><p>Preserva relações de precedência: a dependência precisa aparecer antes do efeito.</p><div class="review-example">P₁ envia m₁; P₂ depende de m₁ e envia m₂ ⇒ m₁ antes de m₂.</div></div></article>
+          <article class="review-card card"><div class="review-icon">3</div><div><h3>Total</h3><p>Os processos do grupo observam a mesma ordem relativa entre as mensagens consideradas.</p><div class="review-example">P₂ entrega m₁ antes de m₂ ⇒ P₃ não pode inverter m₂ e m₁.</div></div></article>
+        </div>
+
+        <div class="key-ideas card">
+          <div><span class="eyebrow">REGRA DE OURO</span><h3>Não confunda estas três perguntas</h3></div>
+          <div class="idea-row"><b>FIFO</b><span>Quem enviou?</span><strong>mesmo remetente</strong></div>
+          <div class="idea-row"><b>Causal</b><span>Existe dependência?</span><strong>causa → efeito</strong></div>
+          <div class="idea-row"><b>Total</b><span>Todos precisam concordar?</span><strong>mesma ordem</strong></div>
+        </div>
+
+        <div class="faq-grid">
+          <article class="card faq"><button class="faq-q">Causal implica FIFO?<span>+</span></button><div class="faq-a">Sim. A sequência de multicasts de um mesmo processo também faz parte da precedência causal. Por isso, a ordenação causal preserva a ordem FIFO do remetente.</div></article>
+          <article class="card faq"><button class="faq-q">FIFO implica causal?<span>+</span></button><div class="faq-a">Não. FIFO não é suficiente para capturar uma dependência que atravessa processos diferentes.</div></article>
+          <article class="card faq"><button class="faq-q">Total implica causal?<span>+</span></button><div class="faq-a">Não necessariamente. Total exige concordância sobre a ordem, mas a definição isolada de total não exige que essa ordem preserve toda relação causal.</div></article>
+          <article class="card faq"><button class="faq-q">Ordenação significa confiabilidade?<span>+</span></button><div class="faq-a">Não. Ordenação e confiabilidade são propriedades diferentes. Coulouris destaca que uma ordenação pode ser discutida separadamente da garantia de entrega confiável.</div></article>
+          <article class="card faq"><button class="faq-q">Duas mensagens concorrentes precisam de uma ordem causal?<span>+</span></button><div class="faq-a">Não. Sem dependência entre elas, a causalidade pode deixar a ordem relativa aberta. Total é que exige uma escolha comum.</div></article>
+          <article class="card faq"><button class="faq-q">Por que “receber” e “entregar” aparecem separados?<span>+</span></button><div class="faq-a">Porque o protocolo pode receber uma mensagem cedo demais para a regra vigente e mantê-la em espera. O simulador foi construído justamente para mostrar essa diferença.</div></article>
+        </div>
+
+        <div class="reference card">
+          <div><span class="eyebrow">REFERÊNCIA PRINCIPAL</span><h3>George Coulouris et al. — Ordered multicast</h3><p>O eixo conceitual do portal acompanha a seção 15.4.3 de <em>Distributed Systems: Concepts and Design</em>, com foco nas definições e relações entre FIFO, causal e total e na distinção entre ordenação e confiabilidade.</p></div>
+          <div class="reference-actions"><a class="btn secondary" href="https://www.pearson.com/en-us/subject-catalog/p/distributed-systems-concepts-and-design/P200000003205" target="_blank" rel="noopener">Coulouris et al. — Distributed Systems</a><a class="btn primary" href="https://docs.google.com/forms/d/e/1FAIpQLSczmiNx0mRafDrsibX1YTKvlHapu5gZ8fsy3K0p5TNfJAnl4g/viewform" target="_blank" rel="noopener">Responder à pesquisa</a></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="container footer-grid">
+      <div><strong>Portal Multicast Ordenado</strong><p>Material didático interativo para estudo de sistemas distribuídos.</p></div>
+      <div><span>Foco</span><p>multicast · FIFO · causal · total</p></div>
+      <div><span>Base</span><p>As explicações são paráfrases didáticas. Para a definição formal e os detalhes dos algoritmos, consulte Coulouris et al., seção 15.4.3.</p></div>
+    </div>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>

@@ -121,7 +121,7 @@
           <button class="ordering-tab" data-order="causal" role="tab" aria-selected="false">2 · Causal</button>
           <button class="ordering-tab" data-order="total" role="tab" aria-selected="false">3 · Total</button>
         </div>
-        <div id="orderPanel" class="order-panel"></div>
+        <div id="orderPanel" class="order-panel" aria-live="polite"></div>
 
         <div class="comparison card">
           <div class="section-heading compact"><div><span class="eyebrow">COMPARAÇÃO</span><h2>O que cada garantia realmente obriga?</h2></div></div>
@@ -280,7 +280,7 @@
           <button id="nextQuestion" class="btn primary" disabled>Próxima questão →</button>
           <button id="newQuiz" class="btn secondary">Nova rodada</button>
         </div>
-        <div id="quizResult" class="quiz-result card hidden"></div>
+        <div id="quizResult" class="quiz-result card hidden" role="status" aria-live="polite"></div>
       </div>
     </section>
 

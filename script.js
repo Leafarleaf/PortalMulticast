@@ -117,7 +117,7 @@ const scenarioData = {
   },
   'causal-chain': {
     name:'B · Dependência causal',
-    description:'P₁ envia m₁. P₂ usa a informação de m₁ para produzir m₂. m₃ é independente. O ponto central é ver m₂ chegar antes de sua causa e ficar esperando.',
+    description:'P₁ envia m₁ a P₂; após utilizá-la, P₂ produz m₂. A cópia de m₂ chega a P₃ antes da cópia de m₁, e deve esperar. m₃ é independente.',
     totalOrder:['m₁','m₂','m₃'],
     messages:[
       {id:'m₁',sender:'P1',deps:[],text:'mensagem que inicia a dependência'},
@@ -125,7 +125,7 @@ const scenarioData = {
       {id:'m₃',sender:'P3',deps:[],text:'mensagem independente de P₃'}
     ],
     arrivals:[
-      ['P3','m₂'],['P3','m₁'],['P1','m₂'],['P2','m₂'],['P1','m₁'],['P2','m₁'],['P3','m₃'],['P2','m₃'],['P1','m₃']
+      ['P2','m₁'],['P3','m₂'],['P3','m₁'],['P1','m₂'],['P2','m₂'],['P1','m₁'],['P3','m₃'],['P2','m₃'],['P1','m₃']
     ]
   },
   'concurrent': {
@@ -158,6 +158,12 @@ state.sim = Object.assign(state.sim,freshSimState());
 function hasReceived(process,id){ return state.sim.received[process].includes(id); }
 function hasDelivered(process,id){ return state.sim.delivered[process].includes(id); }
 
+// A ordenação causal preserva também os envios sucessivos do mesmo remetente.
+function causalDependencies(scenario,msg){
+ const earlier=[];
+ for(const m of scenario.messages){if(m.id===msg.id)break;if(m.sender===msg.sender)earlier.push(m.id);}
+ return [...new Set([...earlier,...msg.deps])];
+}
 function canDeliver(process,id,mode,deliveredMap=state.sim.delivered,receivedMap=state.sim.received,scenario=scenarioData[state.sim.scenario]){
   const msg=scenario.messages.find(m=>m.id===id);
   if(!msg || !receivedMap[process].includes(id) || deliveredMap[process].includes(id)) return false;
@@ -167,7 +173,7 @@ function canDeliver(process,id,mode,deliveredMap=state.sim.delivered,receivedMap
     const index=sameSender.findIndex(m=>m.id===id);
     return sameSender.slice(0,index).every(m=>deliveredMap[process].includes(m.id));
   }
-  if(mode==='causal') return msg.deps.every(dep=>deliveredMap[process].includes(dep));
+  if(mode==='causal') return causalDependencies(scenario,msg).every(dep=>deliveredMap[process].includes(dep));
   if(mode==='total'){
     const index=scenario.totalOrder.indexOf(id);
     if(index<0) return true;
@@ -186,7 +192,7 @@ function blockedReason(process,id,mode){
     return missing.length ? `FIFO exige que ${missing.map(m=>m.id).join(' e ')} seja(m) entregue(s) antes de ${id}, porque vêm do mesmo remetente (${fmt(msg.sender)}).` : 'A condição FIFO está satisfeita.';
   }
   if(mode==='causal'){
-    const missing=msg.deps.filter(dep=>!hasDelivered(process,dep));
+    const missing=causalDependencies(scenario,msg).filter(dep=>!hasDelivered(process,dep));
     return missing.length ? `${fmt(id)} depende de ${missing.map(x=>fmt(x)).join(' e ')}. Como essa(s) mensagem(ns) ainda não foi(ram) entregue(s) a ${fmt(process)}, ${fmt(id)} permanece na fila.` : 'Todas as dependências causais já foram satisfeitas.';
   }
   if(mode==='total'){
@@ -238,7 +244,8 @@ function renderProcess(process){
   const arrivalIds=state.sim.received[process];
   const explanation=waiting.length ? blockedReason(process,waiting[0].msg.id,state.sim.mode) : 'Nenhuma mensagem está bloqueada neste momento.';
   const chips=statuses.map(({msg,status})=>{
-    const deps=msg.deps.length ? `<small>depende de ${msg.deps.map(fmt).join(', ')}</small>` : `<small>${fmt(msg.sender)}</small>`;
+    const needs=state.sim.mode==='causal'?causalDependencies(scenario,msg):msg.deps;
+    const deps=needs.length ? `<small>depende de ${needs.map(fmt).join(', ')}</small>` : `<small>${fmt(msg.sender)}</small>`;
     return `<div class="message-card ${status}"><div class="message-main"><span class="message-id">${fmt(msg.id)}</span><span class="message-status">${statusLabel(status)}</span></div>${deps}</div>`;
   }).join('');
   return `<article class="process-card ${active?'active-process':''}">
@@ -279,16 +286,30 @@ function renderSimulator(){
   $('#deliverySequences').innerHTML=sequences.map(x=>`<div class="sequence-card"><span>${fmt(x.p)}</span><div>${x.seq.length?x.seq.map(id=>`<span>${fmt(id)}</span>`).join('<b>→</b>'):'<em>—</em>'}</div></div>`).join('');
   const complete=sequences.every(x=>x.seq.length===scenario.messages.length);
   const agree=complete && sequences.every(x=>x.seq.join('|')===sequences[0].seq.join('|'));
+  const valid=complete&&['P1','P2','P3'].every(p=>{
+    const seq=state.sim.delivered[p];
+    return scenario.messages.every(m=>{
+      const i=seq.indexOf(m.id);if(i<0)return false;
+      const before=state.sim.mode==='causal'?causalDependencies(scenario,m):
+        state.sim.mode==='fifo'?scenario.messages.filter(x=>x.sender===m.sender)
+          .slice(0,scenario.messages.filter(x=>x.sender===m.sender).findIndex(x=>x.id===m.id)).map(x=>x.id):[];
+      return before.every(id=>seq.indexOf(id)<i);
+    });
+  })&&(state.sim.mode!=='total'||agree);
   const el=$('#deliveryAgreement');
-  el.className=`agreement-badge ${agree?'yes':complete?'partial':'incomplete'}`;
-  el.textContent=agree?'✓ mesma sequência':complete?'⚠ sequências diferentes':'… experimento em andamento';
+  el.className=`agreement-badge ${complete?(valid?'yes':'partial'):'incomplete'}`;
+  if(!complete)el.textContent='… experimento em andamento';
+  else if(!valid)el.textContent='⚠ regra violada';
+  else if(state.sim.mode==='total')el.textContent='✓ mesma sequência';
+  else if(state.sim.mode==='none')el.textContent=agree?'sem ordenação · mesma sequência por acaso':'sem ordenação · sequências livres';
+  else el.textContent=agree?'✓ regra respeitada · mesma sequência':'✓ regra respeitada · sequências diferentes';
 
   const ev=state.sim.lastEvent;
   if(!ev){
     $('#eventFocus').innerHTML=`<span class="event-number">0</span><div><strong>Pronto para observar a rede</strong><p>Clique em “Próximo evento” para fazer uma cópia de ${fmt(scenario.arrivals[0][1])} chegar a ${fmt(scenario.arrivals[0][0])}.</p></div>`;
     $('#simStatus').textContent='Aguardando o primeiro evento';
   }else{
-    const outcome=ev.released.length ? `entregou ${ev.released.map(fmt).join(' → ')} à aplicação` : 'colocou a mensagem na fila de espera';
+    const outcome=ev.released.includes(ev.msg) ? `entregou ${ev.released.map(fmt).join(' → ')} à aplicação` : 'colocou a mensagem na fila de espera';
     $('#eventFocus').innerHTML=`<span class="event-number">${ev.number}</span><div><strong>${fmt(ev.msg)} chegou a ${fmt(ev.process)} → ${outcome}</strong><p>${fmt(ev.explanation)}</p></div>`;
     $('#simStatus').textContent=ev.released.length ? 'A entrega foi liberada' : 'A mensagem precisa esperar';
   }
@@ -481,15 +502,15 @@ const questionBank = [
   {q:'Se m₂ depende de m₁ e m₁ ainda não foi entregue a P3, o que causal faz com m₂ se ela já chegou?',o:['Entrega m₂ imediatamente','Mantém m₂ aguardando','Descarta m₂','Muda para FIFO'],a:1,e:'A mensagem chegou, mas sua dependência ainda não foi satisfeita.'}
 ];
 
-function shuffle(arr){return [...arr].sort(()=>Math.random()-.5)}
+function shuffle(arr){const a=[...arr];for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
 function renderQuizStats(){
   const best=state.quiz.bestGrade; const last=state.quiz.lastScore; const total=state.quiz.lastTotal;
   $('#bestGrade').textContent=best==null?'—':Number(best).toFixed(1);
-  $('#lastGrade').textContent=last==null?'—':(last/total).toFixed(1);
+  $('#lastGrade').textContent=last==null||!total?'—':gradeFor(last,total).toFixed(1);
   $('#lastPercent').textContent=last==null?'nenhuma rodada':`${Math.round(last/total*100)}% de aproveitamento`;
   $('#attemptCount').textContent=state.quiz.attempts||0;
 }
-function gradeFor(score,total){return Math.round((score/total)*100)/10;}
+function gradeFor(score,total){return total>0?Math.round((score/total)*100)/10:0;}
 function startQuiz(){
   const total=Number($('#questionSize').value); state.quiz.bank=shuffle(questionBank).slice(0,total); state.quiz.total=total;state.quiz.index=0;state.quiz.score=0;state.quiz.answered=false;
   $('#questionCount').textContent=total;$('#quizResult').classList.add('hidden');$('#nextQuestion').disabled=true;renderQuestion();renderQuizStats();

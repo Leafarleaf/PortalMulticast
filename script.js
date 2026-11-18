@@ -4,10 +4,25 @@ const $$ = (sel, root=document) => [...root.querySelectorAll(sel)];
 const STORAGE = {
   theme: 'mcast-theme', quiz: 'mcast-quiz-stats'
 };
+function safeRead(key){try{return localStorage.getItem(key);}catch(_){return null;}}
+function safeWrite(key,value){try{localStorage.setItem(key,value);}catch(_){}}
+function readQuizStats(){
+  try{
+    const a=JSON.parse(safeRead(STORAGE.quiz)||'{}');
+    if(!a||typeof a!=='object'||Array.isArray(a))return {};
+    const r={};
+    if(Number.isSafeInteger(a.attempts)&&a.attempts>=0)r.attempts=a.attempts;
+    if(Number.isFinite(a.bestGrade)&&a.bestGrade>=0&&a.bestGrade<=10)r.bestGrade=a.bestGrade;
+    if(Number.isSafeInteger(a.lastScore)&&Number.isSafeInteger(a.lastTotal)&&a.lastTotal>0&&a.lastScore>=0&&a.lastScore<=a.lastTotal){
+      r.lastScore=a.lastScore;r.lastTotal=a.lastTotal;
+    }
+    return r;
+  }catch(_){return {};}
+}
 
 const state = {
-  theme: localStorage.getItem(STORAGE.theme) || 'light',
-  quiz: Object.assign({ bank: [], index: 0, score: 0, answered: false, total: 10, attempts: 0, bestGrade: null, lastScore: null, lastTotal: null }, JSON.parse(localStorage.getItem(STORAGE.quiz) || '{}')),
+  theme: safeRead(STORAGE.theme)==='dark'?'dark':'light',
+  quiz: Object.assign({ bank: [], index: 0, score: 0, answered: false, total: 10, attempts: 0, bestGrade: null, lastScore: null, lastTotal: null }, readQuizStats()),
   sim: { scenario:'same-sender', mode:'fifo', eventIndex:0, arrivals:[], received:{P1:[],P2:[],P3:[]}, delivered:{P1:[],P2:[],P3:[]}, lastEvent:null, lastDeliveries:[], auto:null, log:[] }
 };
 
@@ -52,15 +67,15 @@ const orderData = {
 };
 
 function saveCore(){
-  localStorage.setItem(STORAGE.theme,state.theme);
+  safeWrite(STORAGE.theme,state.theme);
 }
 function saveQuizStats(){
-  localStorage.setItem(STORAGE.quiz,JSON.stringify({attempts:state.quiz.attempts,bestGrade:state.quiz.bestGrade,lastScore:state.quiz.lastScore,lastTotal:state.quiz.lastTotal}));
+  safeWrite(STORAGE.quiz,JSON.stringify({attempts:state.quiz.attempts,bestGrade:state.quiz.bestGrade,lastScore:state.quiz.lastScore,lastTotal:state.quiz.lastTotal}));
 }
 function navTo(section){
   const el=document.getElementById(section); if(el) el.scrollIntoView({behavior:'smooth',block:'start'});
   const nav=$('#mobileNav'); const toggle=$('#menuToggle');
-  nav.classList.remove('open'); toggle.setAttribute('aria-expanded','false'); nav.setAttribute('aria-hidden','true');
+  if(nav&&toggle){nav.classList.remove('open');toggle.setAttribute('aria-expanded','false');nav.setAttribute('aria-hidden','true');}
 }
 $$('[data-section]').forEach(btn=>btn.addEventListener('click',()=>navTo(btn.dataset.section)));
 
@@ -96,7 +111,13 @@ function renderOrder(order='fifo'){
 }
 $$('.ordering-tab').forEach(btn=>btn.addEventListener('click',()=>{
   $$('.ordering-tab').forEach(b=>{b.classList.remove('active');b.setAttribute('aria-selected','false');});
-  btn.classList.add('active');btn.setAttribute('aria-selected','true');renderOrder(btn.dataset.order);
+  btn.classList.add('active');btn.setAttribute('aria-selected','true');renderOrder(btn.dataset.order);btn.focus();
+}));
+$('.ordering-tab').forEach((btn,i,tabs)=>btn.addEventListener('keydown',ev=>{
+  if(!['ArrowRight','ArrowLeft','Home','End'].includes(ev.key))return;
+  ev.preventDefault();
+  const next=ev.key==='Home'?0:ev.key==='End'?tabs.length-1:(i+(ev.key==='ArrowRight'?1:-1)+tabs.length)%tabs.length;
+  tabs[next].click();
 }));
 renderOrder();
 
@@ -392,8 +413,8 @@ function processOneEvent(){
   renderSimulator();
   renderExplanation('event');
   if(state.sim.eventIndex>=scenario.arrivals.length){
-    setTimeout(()=>{ if(state.sim.eventIndex>=scenario.arrivals.length) renderExplanation('complete'); },50);
     clearInterval(state.sim.auto);state.sim.auto=null;$('#autoSim').textContent='▶ Reproduzir';
+    $('#stepSim').disabled=true;
   }
 }
 
@@ -408,9 +429,12 @@ function resetSimState(){
   renderSimulator();
   updateSimLog();
   renderExplanation('start');
+  runComparison();
+  $('#stepSim').disabled=false;
 }
 
 function startAuto(){
+  if(state.sim.eventIndex>=scenarioData[state.sim.scenario].arrivals.length)return;
   if(state.sim.auto){
     clearInterval(state.sim.auto);state.sim.auto=null;$('#autoSim').textContent='▶ Reproduzir';return;
   }
@@ -518,11 +542,11 @@ function startQuiz(){
 function renderQuestion(){
   const item=state.quiz.bank[state.quiz.index]; const total=state.quiz.bank.length; const current=state.quiz.index+1;
   $('#quizTitle').textContent=`Questão ${current} de ${total}`;$('#quizSubtitle').textContent='Escolha uma alternativa. Depois da resposta, veja o motivo.';$('#quizScore').textContent=state.quiz.score;$('#quizProgress').style.width=`${((current-1)/total)*100}%`;$('#nextQuestion').textContent=current===total?'Ver resultado →':'Próxima questão →';$('#nextQuestion').disabled=true;state.quiz.answered=false;
-  $('#quizCard').innerHTML=`<div class="question-index">Questão ${current}</div><div class="question-text">${fmt(item.q)}</div><div class="option-grid">${item.o.map((x,i)=>`<button class="option" data-index="${i}"><strong>${String.fromCharCode(65+i)}.</strong> ${fmt(x)}</button>`).join('')}</div><div id="feedback" class="feedback hidden"></div>`;
+  $('#quizCard').innerHTML=`<div class="question-index">Questão ${current}</div><div class="question-text">${fmt(item.q)}</div><div class="option-grid">${item.o.map((x,i)=>`<button type="button" class="option" data-index="${i}"><strong>${String.fromCharCode(65+i)}.</strong> ${fmt(x)}</button>`).join('')}</div><div id="feedback" class="feedback hidden" role="status" aria-live="polite"></div>`;
   $$('.option',$('#quizCard')).forEach(btn=>btn.addEventListener('click',()=>answerQuestion(Number(btn.dataset.index))));
 }
 function answerQuestion(index){
-  if(state.quiz.answered)return;const item=state.quiz.bank[state.quiz.index];state.quiz.answered=true;const opts=$$('.option',$('#quizCard'));opts.forEach((btn,i)=>{btn.classList.add('disabled');if(i===item.a)btn.classList.add('correct');if(i===index&&i!==item.a)btn.classList.add('wrong');});const right=index===item.a;if(right)state.quiz.score++;const f=$('#feedback');f.classList.remove('hidden');f.innerHTML=`<strong>${right?'✓ Correto!':'✗ Quase!'}</strong> ${fmt(item.e)}`;$('#quizScore').textContent=state.quiz.score;$('#nextQuestion').disabled=false;
+  if(state.quiz.answered||!Number.isInteger(index))return;const item=state.quiz.bank[state.quiz.index];if(index<0||index>=item.o.length)return;state.quiz.answered=true;const opts=$$('.option',$('#quizCard'));opts.forEach((btn,i)=>{btn.classList.add('disabled');if(i===item.a)btn.classList.add('correct');if(i===index&&i!==item.a)btn.classList.add('wrong');});const right=index===item.a;if(right)state.quiz.score++;const f=$('#feedback');f.classList.remove('hidden');f.innerHTML=`<strong>${right?'✓ Correto!':'✗ Quase!'}</strong> ${fmt(item.e)}`;$('#quizScore').textContent=state.quiz.score;$('#nextQuestion').disabled=false;
 }
 $('#nextQuestion').addEventListener('click',()=>{if(state.quiz.index===state.quiz.bank.length-1)showQuizResult();else{state.quiz.index++;renderQuestion();}});
 $('#newQuiz').addEventListener('click',startQuiz);$('#questionSize').addEventListener('change',startQuiz);
@@ -535,7 +559,7 @@ function showQuizResult(){
 
 
 // ----------------------------- FAQ -----------------------------
-$$('.faq-q').forEach(btn=>btn.addEventListener('click',()=>{const card=btn.closest('.faq');const open=card.classList.toggle('open');btn.querySelector('span').textContent=open?'−':'+';}));
+$('.faq-q').forEach(btn=>{btn.setAttribute('aria-expanded',String(btn.closest('.faq').classList.contains('open')));btn.addEventListener('click',()=>{const card=btn.closest('.faq');const open=card.classList.toggle('open');btn.setAttribute('aria-expanded',String(open));btn.querySelector('span').textContent=open?'−':'+';});});
 
 // ----------------------------- INIT -----------------------------
-renderQuizStats();resetSimState();runComparison();startQuiz();
+renderQuizStats();resetSimState();startQuiz();

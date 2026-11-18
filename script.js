@@ -559,7 +559,7 @@ function showQuizResult(){
 
 
 // ----------------------------- FAQ -----------------------------
-$('.faq-q').forEach(btn=>{btn.setAttribute('aria-expanded',String(btn.closest('.faq').classList.contains('open')));btn.addEventListener('click',()=>{const card=btn.closest('.faq');const open=card.classList.toggle('open');btn.setAttribute('aria-expanded',String(open));btn.querySelector('span').textContent=open?'−':'+';});});
+$$('.faq-q').forEach(btn=>{btn.setAttribute('aria-expanded',String(btn.closest('.faq').classList.contains('open')));btn.addEventListener('click',()=>{const card=btn.closest('.faq');const open=card.classList.toggle('open');btn.setAttribute('aria-expanded',String(open));btn.querySelector('span').textContent=open?'−':'+';});});
 
 // ----------------------------- INIT -----------------------------
 renderQuizStats();resetSimState();startQuiz();

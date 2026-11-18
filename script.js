@@ -113,7 +113,7 @@ $$('.ordering-tab').forEach(btn=>btn.addEventListener('click',()=>{
   $$('.ordering-tab').forEach(b=>{b.classList.remove('active');b.setAttribute('aria-selected','false');});
   btn.classList.add('active');btn.setAttribute('aria-selected','true');renderOrder(btn.dataset.order);btn.focus();
 }));
-$('.ordering-tab').forEach((btn,i,tabs)=>btn.addEventListener('keydown',ev=>{
+$$('.ordering-tab').forEach((btn,i,tabs)=>btn.addEventListener('keydown',ev=>{
   if(!['ArrowRight','ArrowLeft','Home','End'].includes(ev.key))return;
   ev.preventDefault();
   const next=ev.key==='Home'?0:ev.key==='End'?tabs.length-1:(i+(ev.key==='ArrowRight'?1:-1)+tabs.length)%tabs.length;

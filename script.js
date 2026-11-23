@@ -458,6 +458,7 @@ function clearComparison(){
   $('#compareGrid').innerHTML='<p class="compare-placeholder">Selecione o cenário e clique em <strong>Comparar regras</strong> para observar as entregas nas quatro modalidades.</p>';
   $('#compareStatus').textContent=`Aguardando comparação · ${scenario.name}`;
   $('#runComparison').textContent='▶ Comparar regras';
+  $('#runComparison').style.display='';
 }
 function runComparison(){
   const scenarioName=$('#scenarioSelect').value;
@@ -506,7 +507,9 @@ function runComparison(){
   }else{
     $('#compareStatus').textContent=`✓ Comparação concluída — ${scenario.name} · 4 regras · 3 processos · ${scenario.arrivals.length} chegadas por modalidade. A ordem total é comum; FIFO e causal preservam as precedências exigidas.`;
   }
-  $('#runComparison').textContent='↻ Comparar novamente';
+  // Após a comparação, não há necessidade de recalcular o mesmo cenário.
+  // O botão aparece novamente quando o cenário ou o simulador é reiniciado.
+  $('#runComparison').style.display='none';
 }
 $('#loadScenario').addEventListener('click',resetSimState);
 $('#resetSim').addEventListener('click',resetSimState);

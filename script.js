@@ -429,7 +429,7 @@ function resetSimState(){
   renderSimulator();
   updateSimLog();
   renderExplanation('start');
-  runComparison();
+  clearComparison();
   $('#stepSim').disabled=false;
 }
 
@@ -452,26 +452,62 @@ function simulateMode(scenarioName,mode){
   return {rec,del};
 }
 
+// A comparação só acontece ao clicar; ao trocar o cenário o quadro é limpo.
+function clearComparison(){
+  const scenario=scenarioData[$('#scenarioSelect').value];
+  $('#compareGrid').innerHTML='<p class="compare-placeholder">Selecione o cenário e clique em <strong>Comparar regras</strong> para observar as entregas nas quatro modalidades.</p>';
+  $('#compareStatus').textContent=`Aguardando comparação · ${scenario.name}`;
+  $('#runComparison').textContent='▶ Comparar regras';
+}
 function runComparison(){
   const scenarioName=$('#scenarioSelect').value;
-  const s=scenarioData[scenarioName];
+  const scenario=scenarioData[scenarioName];
   const modes=['none','fifo','causal','total'];
   const labels={none:'Sem ordenação',fifo:'FIFO',causal:'Causal',total:'Total'};
   const descriptions={
-    none:'Cada processo entrega conforme as cópias chegam. Processos podem observar ordens diferentes.',
-    fifo:'Cada processo preserva a ordem das mensagens do mesmo remetente. Mensagens de outros remetentes podem ser intercaladas.',
-    causal:'Dependências são preservadas. Mensagens concorrentes não precisam receber a mesma posição.',
-    total:`Todos os processos seguem a mesma ordem relativa escolhida para este cenário: ${s.totalOrder.map(fmt).join(' → ')}.`
+    none:'As mensagens são entregues na ordem em que chegam a cada processo. Não existe uma restrição adicional de ordenação.',
+    fifo:'Mensagens de um mesmo remetente respeitam a ordem de envio; mensagens de remetentes diferentes podem ser intercaladas.',
+    causal:'Mensagens dependentes são entregues depois das respectivas causas, inclusive quando foram enviadas pelo mesmo processo.',
+    total:`Todos os processos seguem a ordem comum definida no cenário: ${scenario.totalOrder.map(fmt).join(' → ')}.`
   };
+  const outcomes={};
   $('#compareGrid').innerHTML=modes.map(mode=>{
     const result=simulateMode(scenarioName,mode);
     const rows=['P1','P2','P3'].map(p=>({p,seq:result.del[p]}));
-    const allComplete=rows.every(r=>r.seq.length===s.messages.length);
-    const same=allComplete && rows.every(r=>r.seq.join('|')===rows[0].seq.join('|'));
-    return `<article class="compare-card mode-${mode}"><div class="compare-card-head"><strong>${labels[mode]}</strong><span>${same?'✓ mesma ordem':mode==='causal'?'ordens podem variar':'ordem local'}</span></div><div class="compare-sequence-large">${rows[0].seq.map((id,i)=>`<span>${fmt(id)}</span>${i<rows[0].seq.length-1?'<b>→</b>':''}`).join('')||'—'}</div><div class="compare-processes">${rows.map(r=>`<div><strong>${fmt(r.p)}</strong><span>${r.seq.map(fmt).join(' → ')||'—'}</span></div>`).join('')}</div><p>${descriptions[mode]}</p></article>`;
+    const complete=rows.every(r=>r.seq.length===scenario.messages.length);
+    const equal=complete&&rows.every(r=>r.seq.join('|')===rows[0].seq.join('|'));
+    const respects=complete&&rows.every(({seq})=>scenario.messages.every(message=>{
+      const at=seq.indexOf(message.id);
+      if(at===-1)return false;
+      let earlier=[];
+      if(mode==='fifo'){
+        for(const m of scenario.messages){if(m.id===message.id)break;if(m.sender===message.sender)earlier.push(m.id);}
+      }else if(mode==='causal')earlier=causalDependencies(scenario,message);
+      else if(mode==='total')earlier=scenario.totalOrder.slice(0,scenario.totalOrder.indexOf(message.id));
+      return earlier.every(id=>seq.indexOf(id)>=0&&seq.indexOf(id)<at);
+    }));
+    const valid=respects&&(mode!=='total'||equal);
+    const count=new Set(rows.map(r=>r.seq.join('|'))).size;
+    outcomes[mode]={complete,valid,count};
+    const status=mode==='none'?`Sem ordem obrigatória · ${count} sequência(s)`:
+      !complete?'⚠ Entregas pendentes':!valid?'⚠ Regra violada':
+      mode==='total'?'✓ Mesma sequência em todos':`✓ Regra preservada · ${count} sequência(s)`;
+    return `<article class="compare-card mode-${mode}" data-mode="${mode}">
+      <div class="compare-card-head"><strong>${labels[mode]}</strong><span>${status}</span></div>
+      <div class="compare-example-label">Exemplo de ordem de entrega em P₁</div>
+      <div class="compare-sequence-large">${rows[0].seq.map((id,i)=>`<span>${fmt(id)}</span>${i<rows[0].seq.length-1?'<b>→</b>':''}`).join('')||'—'}</div>
+      <div class="compare-processes">${rows.map(r=>`<div><strong>${fmt(r.p)}</strong><span>${r.seq.map(fmt).join(' → ')||'—'}</span></div>`).join('')}</div>
+      <p>${descriptions[mode]}</p>
+    </article>`;
   }).join('');
+  const checks=['fifo','causal','total'];
+  if(checks.some(mode=>!outcomes[mode].valid)){
+    $('#compareStatus').textContent=`⚠ ${scenario.name}: uma condição de ordenação não foi satisfeita. Verifique as sequências.`;
+  }else{
+    $('#compareStatus').textContent=`✓ Comparação concluída — ${scenario.name} · 4 regras · 3 processos · ${scenario.arrivals.length} chegadas por modalidade. A ordem total é comum; FIFO e causal preservam as precedências exigidas.`;
+  }
+  $('#runComparison').textContent='↻ Comparar novamente';
 }
-
 $('#loadScenario').addEventListener('click',resetSimState);
 $('#resetSim').addEventListener('click',resetSimState);
 $('#stepSim').addEventListener('click',processOneEvent);

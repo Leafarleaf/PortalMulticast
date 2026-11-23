@@ -460,55 +460,75 @@ function clearComparison(){
   $('#runComparison').textContent='▶ Comparar regras';
   $('#runComparison').style.display='';
 }
-function runComparison(){
+function runComparison() {
   const scenarioName=$('#scenarioSelect').value;
   const scenario=scenarioData[scenarioName];
   const modes=['none','fifo','causal','total'];
   const labels={none:'Sem ordenação',fifo:'FIFO',causal:'Causal',total:'Total'};
   const descriptions={
-    none:'As mensagens são entregues na ordem em que chegam a cada processo. Não existe uma restrição adicional de ordenação.',
-    fifo:'Mensagens de um mesmo remetente respeitam a ordem de envio; mensagens de remetentes diferentes podem ser intercaladas.',
-    causal:'Mensagens dependentes são entregues depois das respectivas causas, inclusive quando foram enviadas pelo mesmo processo.',
-    total:`Todos os processos seguem a ordem comum definida no cenário: ${scenario.totalOrder.map(fmt).join(' → ')}.`
+    none:'Cada processo entrega as mensagens na ordem em que elas chegam. Não há obrigação de preservar FIFO, causalidade ou uma ordem comum.',
+    fifo:'Preserva a ordem dos multicasts enviados pelo mesmo remetente. Mensagens de outros remetentes podem aparecer entre eles.',
+    causal:'Preserva tanto a sequência de envios de um mesmo processo quanto dependências entre processos diferentes.',
+    total:`Todos entregam na ordem comum definida neste cenário: ${scenario.totalOrder.map(fmt).join(' → ')}.`
   };
-  const outcomes={};
-  $('#compareGrid').innerHTML=modes.map(mode=>{
+  const insights={
+    'same-sender':'Aqui, FIFO e causal produzem as mesmas sequências: m₁ e m₂ foram enviadas pelo mesmo remetente. A regra total exige ainda que todos concordem com a posição de m₃.',
+    'causal-chain':'Neste cenário, FIFO permite m₂ antes de m₁ em alguns processos, porque as mensagens vêm de remetentes distintos. Causal impede essa inversão. A sequência final causal coincide com a total neste exemplo, mas as garantias são diferentes.',
+    'concurrent':'Como as três mensagens são concorrentes, FIFO e causal não impõem uma ordem entre elas. A regra total exige que os três processos concordem com uma mesma sequência.'
+  };
+  const outcomes=Object.fromEntries(modes.map(mode=>{
     const result=simulateMode(scenarioName,mode);
     const rows=['P1','P2','P3'].map(p=>({p,seq:result.del[p]}));
     const complete=rows.every(r=>r.seq.length===scenario.messages.length);
     const equal=complete&&rows.every(r=>r.seq.join('|')===rows[0].seq.join('|'));
     const respects=complete&&rows.every(({seq})=>scenario.messages.every(message=>{
       const at=seq.indexOf(message.id);
-      if(at===-1)return false;
-      let earlier=[];
+      if(at<0)return false;
+      let previous=[];
       if(mode==='fifo'){
-        for(const m of scenario.messages){if(m.id===message.id)break;if(m.sender===message.sender)earlier.push(m.id);}
-      }else if(mode==='causal')earlier=causalDependencies(scenario,message);
-      else if(mode==='total')earlier=scenario.totalOrder.slice(0,scenario.totalOrder.indexOf(message.id));
-      return earlier.every(id=>seq.indexOf(id)>=0&&seq.indexOf(id)<at);
+        for(const m of scenario.messages){
+          if(m.id===message.id)break;
+          if(m.sender===message.sender)previous.push(m.id);
+        }
+      }else if(mode==='causal')previous=causalDependencies(scenario,message);
+      else if(mode==='total')previous=scenario.totalOrder.slice(0,scenario.totalOrder.indexOf(message.id));
+      return previous.every(id=>seq.indexOf(id)>=0&&seq.indexOf(id)<at);
     }));
     const valid=respects&&(mode!=='total'||equal);
     const count=new Set(rows.map(r=>r.seq.join('|'))).size;
-    outcomes[mode]={complete,valid,count};
-    const status=mode==='none'?`Sem ordem obrigatória · ${count} sequência(s)`:
-      !complete?'⚠ Entregas pendentes':!valid?'⚠ Regra violada':
-      mode==='total'?'✓ Mesma sequência em todos':`✓ Regra preservada · ${count} sequência(s)`;
+    return [mode,{rows,complete,valid,equal,count}];
+  }));
+  const reference={fifo:'none',causal:'fifo',total:'causal'};
+  $('#compareGrid').innerHTML=modes.map(mode=>{
+    const result=outcomes[mode];
+    const changedAgainst=reference[mode];
+    const different=changedAgainst
+      ? result.rows.filter((r,i)=>r.seq.join('|')!==outcomes[changedAgainst].rows[i].seq.join('|')).length
+      : 0;
+    const referenceLabel={fifo:'sem ordenação',causal:'FIFO',total:'causal'};
+    const resultLabel=mode==='none'?`${result.count} ordens de chegada`:
+      !result.valid?'⚠ Regra não satisfeita':
+      mode==='total'?'1 ordem comum':`${result.count} ordem(ns) permitida(s)`;
+    const contrast=mode==='none'?'Referência: entrega sem restrições':
+      different?`${different} processo(s) com ordem diferente de ${referenceLabel[mode]}`:
+      `Mesmas sequências de ${referenceLabel[mode]} neste cenário`;
     return `<article class="compare-card mode-${mode}" data-mode="${mode}">
-      <div class="compare-card-head"><strong>${labels[mode]}</strong><span>${status}</span></div>
-      <div class="compare-example-label">Exemplo de ordem de entrega em P₁</div>
-      <div class="compare-sequence-large">${rows[0].seq.map((id,i)=>`<span>${fmt(id)}</span>${i<rows[0].seq.length-1?'<b>→</b>':''}`).join('')||'—'}</div>
-      <div class="compare-processes">${rows.map(r=>`<div><strong>${fmt(r.p)}</strong><span>${r.seq.map(fmt).join(' → ')||'—'}</span></div>`).join('')}</div>
+      <div class="compare-card-head"><strong>${labels[mode]}</strong><span>${resultLabel}</span></div>
+      <div class="compare-process-heading">Ordem de entrega em cada processo</div>
+      <div class="compare-processes">
+        ${result.rows.map((r,i)=>{
+          const changed=!!changedAgainst&&r.seq.join('|')!==outcomes[changedAgainst].rows[i].seq.join('|');
+          return `<div class="compare-process-row${changed?' compare-row-different':''}"${changed?' title="Sequência alterada em relação à modalidade anterior"':''}><strong>${fmt(r.p)}</strong><span>${r.seq.map(fmt).join(' → ')||'—'}</span>${changed?'<small>mudou</small>':''}</div>`;
+        }).join('')}
+      </div>
+      <div class="compare-contrast">${contrast}</div>
       <p>${descriptions[mode]}</p>
     </article>`;
   }).join('');
-  const checks=['fifo','causal','total'];
-  if(checks.some(mode=>!outcomes[mode].valid)){
-    $('#compareStatus').textContent=`⚠ ${scenario.name}: uma condição de ordenação não foi satisfeita. Verifique as sequências.`;
-  }else{
-    $('#compareStatus').textContent=`✓ Comparação concluída — ${scenario.name} · 4 regras · 3 processos · ${scenario.arrivals.length} chegadas por modalidade. A ordem total é comum; FIFO e causal preservam as precedências exigidas.`;
-  }
-  // Após a comparação, não há necessidade de recalcular o mesmo cenário.
-  // O botão aparece novamente quando o cenário ou o simulador é reiniciado.
+  const invalid=['fifo','causal','total'].filter(mode=>!outcomes[mode].valid);
+  $('#compareStatus').textContent=invalid.length
+    ? `Atenção — ${scenario.name}: a condição de ${invalid.map(mode=>labels[mode]).join(', ')} não foi respeitada.`
+    : `${scenario.name} — ${insights[scenarioName]}`;
   $('#runComparison').style.display='none';
 }
 $('#loadScenario').addEventListener('click',resetSimState);
